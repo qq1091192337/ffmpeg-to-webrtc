@@ -1,31 +1,68 @@
-# This workflow will build a golang project
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-go
-
-name: Go Build
+name: Go Build and Release
 
 on:
   push:
-    branches:
-      - master
-  pull_request:
-    branches:
-      - main
+    tags:
+      - 'v*'
 
 jobs:
   build:
-    name: Build
+    name: Build and Release
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [windows, linux]
+        include:
+          - os: windows
+            goos: windows
+            goarch: amd64
+            ext: .exe
+          - os: linux
+            goos: linux
+            goarch: amd64
+            ext: ''
     steps:
       - name: Set up Go
         uses: actions/setup-go@v3
         with:
-          go-version: 1.18 
+          go-version: 1.18
 
       - name: Check out code
         uses: actions/checkout@v3
-        
-      - name: Build
-        run: cd src&&go build -v ./...
 
-      - name: Run tests
-        run: cd src&&go test -v ./...
+      - name: Set up cross-compiling
+        run: echo "GOOS=${{ matrix.goos }}" >> $GITHUB_ENV && echo "GOARCH=${{ matrix.goarch }}" >> $GITHUB_ENV
+
+      - name: Build binary
+        run: go build -v -o myapp${{ matrix.ext }} ./src/
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v3
+        with:
+          name: myapp-${{ matrix.os }}
+          path: ./myapp${{ matrix.ext }}
+
+  create-release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false
+
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./myapp-${{ matrix.os }}
+          asset_name: myapp-${{ matrix.os }}
+          asset_content_type: application/octet-stream
