@@ -34,7 +34,7 @@ jobs:
         run: echo "GOOS=${{ matrix.goos }}" >> $GITHUB_ENV && echo "GOARCH=${{ matrix.goarch }}" >> $GITHUB_ENV
 
       - name: Build binary
-        run: go build -v -o myapp${{ matrix.ext }} ./src/
+        run:  cd src&&go build -v ./... -o myapp${{ matrix.ext }} ./src/
 
       - name: Upload binary
         uses: actions/upload-artifact@v3
